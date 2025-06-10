@@ -1,0 +1,155 @@
+/* Importa a fonte do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+/* Keyframes para Animações */
+@keyframes place-die { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes destroy-die { 0% { transform: scale(1) rotate(0); } 25% { transform: scale(1.1) rotate(-5deg); } 50% { transform: scale(1.1) rotate(5deg); } 100% { transform: scale(0.1) rotate(0); opacity: 0; } }
+@keyframes roll-die { 0% { transform: rotateX(0deg); } 100% { transform: rotateX(1080deg); } }
+
+/* --- Estilos Gerais --- */
+body {
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* --- Telas de Menu --- */
+#game-mode-selection, #difficulty-selection {
+    text-align: center;
+    background-color: #16213e;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+
+#game-mode-selection h1, #difficulty-selection h1 {
+    color: #e94560;
+    margin-top: 0;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.menu-btn {
+    padding: 15px 30px;
+    font-size: 1.1em;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    border: 2px solid #e94560;
+    border-radius: 8px;
+    background-color: transparent;
+    color: #e94560;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s, transform 0.2s;
+    min-width: 200px;
+}
+
+.menu-btn:hover {
+    background-color: #e94560;
+    color: white;
+    transform: translateY(-3px);
+}
+
+.menu-btn.secondary {
+    background-color: transparent;
+    border-color: #5a6a90;
+    color: #c0c5d1;
+}
+
+.menu-btn.secondary:hover {
+    background-color: #5a6a90;
+    color: white;
+}
+
+
+/* --- Estrutura Principal do Jogo --- */
+#game-wrapper {
+    width: 100%;
+    max-width: 1200px;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+/* --- Área dos Tabuleiros --- */
+.board-area {
+    background-color: #16213e;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    border: 3px solid transparent;
+}
+
+.board-area.active-player {
+    border-color: #e94560;
+    box-shadow: 0 4px 25px rgba(233, 69, 96, 0.5);
+}
+
+.board-area h2 { text-align: center; margin: 0 0 15px 0; color: #f0f0f0; }
+.board-area h2 .score { color: #e94560; font-weight: 400; }
+.board { display: flex; gap: 10px; justify-content: center; }
+.column { display: flex; flex-direction: column; gap: 10px; border-radius: 8px; transition: background-color 0.3s ease; }
+
+#p1-board .column:hover,
+#p2-board.human-player .column:hover {
+    background-color: rgba(233, 69, 96, 0.2);
+    cursor: pointer;
+}
+
+.cell { width: 70px; height: 70px; border: 2px solid #0f3460; background-color: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 2.2em; font-weight: 600; border-radius: 8px; color: #f0f0f0; transition: transform 0.2s ease; }
+
+.cell.placed { animation: place-die 0.4s ease-out; }
+.cell.destroyed { animation: destroy-die 0.5s ease-in-out; }
+
+/* --- Área de Status --- */
+#status-area { text-align: center; padding: 20px; }
+#turn-info { font-size: 1.2em; font-weight: 600; color: #e94560; min-height: 2em; }
+#dice-container { display: flex; justify-content: center; gap: 30px; margin: 20px 0; }
+.die-display { width: 60px; height: 60px; line-height: 60px; border: 2px solid #e94560; border-radius: 8px; font-size: 2em; margin: 10px auto; background-color: #1f2847; font-weight: bold; color: #fff; text-align: center; }
+.die-display.rolling { animation: roll-die 0.5s ease-in-out; }
+
+#main-menu-button {
+    padding: 12px 25px;
+    font-size: 1em;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    background-color: #e94560;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    margin-top: 10px;
+}
+#main-menu-button:hover { background-color: #ff667f; transform: translateY(-2px); }
+
+/* --- Responsividade --- */
+@media (min-width: 900px) {
+    #game-container { flex-direction: row; align-items: flex-start; justify-content: center; }
+    #status-area { order: 2; }
+    .board-area:first-child { order: 1; } /* p2-area */
+    .board-area:last-child { order: 3; } /* p1-area */
+}

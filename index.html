@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knucklebones Deluxe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-mode-selection">
+        <h1>Knucklebones</h1>
+        <h2>Selecione o Modo de Jogo</h2>
+        <div class="menu-buttons">
+            <button class="menu-btn" data-mode="cpu">Contra CPU</button>
+            <button class="menu-btn" data-mode="player">Contra Jogador</button>
+        </div>
+    </div>
+
+    <div id="difficulty-selection" class="hidden">
+        <h1>Knucklebones</h1>
+        <h2>Escolha a Dificuldade</h2>
+        <div class="menu-buttons">
+            <button class="menu-btn" data-difficulty="easy">Fácil</button>
+            <button class="menu-btn" data-difficulty="medium">Médio</button>
+            <button class="menu-btn" data-difficulty="hard">Difícil</button>
+            <button class="menu-btn secondary" id="back-to-mode-select">Voltar</button>
+        </div>
+    </div>
+
+    <div id="game-wrapper" class="hidden">
+        <div id="game-container">
+            <div class="board-area" id="p2-area">
+                <h2 id="p2-label">CPU <span class="score">(<span id="p2-score">0</span>)</span></h2>
+                <div id="p2-board" class="board"></div>
+            </div>
+
+            <div id="status-area">
+                <p id="turn-info">Sua vez!</p>
+                <div id="dice-container">
+                    <div class="dice-display-area">
+                        <p id="p2-die-label">CPU Rolou</p>
+                        <div id="p2-die-display" class="die-display"></div>
+                    </div>
+                    <div class="dice-display-area">
+                        <p id="p1-die-label">Você Rolou</p>
+                        <div id="p1-die-display" class="die-display">?</div>
+                    </div>
+                </div>
+                <p id="message-info"></p>
+                <button id="main-menu-button">Menu Principal</button>
+            </div>
+
+            <div class="board-area" id="p1-area">
+                <h2 id="p1-label">Você <span class="score">(<span id="p1-score">0</span>)</span></h2>
+                <div id="p1-board" class="board"></div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
