@@ -90,8 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (gameState.tutorialStep === 4) {
                 await delay(1500);
                 gameState.p2Board[0][0] = 6;
-                p2DieDisplay.innerHTML = ''; // Limpa antes de adicionar
-                p2DieDisplay.appendChild(createDieVisual(6));
+                await animateDieRoll(p2DieDisplay, 6);
                 animateCell(p2BoardEl.querySelector(`.cell[data-row='0'][data-col='0']`), 'placed');
                 updateDisplay();
                 await delay(2500);
@@ -167,31 +166,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateDisplay();
         animateDieRoll(p1DieDisplay, gameState.dice.p1);
-        p2DieDisplay.innerHTML = ''; // Limpa o display
+        p2DieDisplay.innerHTML = '';
         switchTurnUI();
     }
     
     function handleBoardClick(event) {
         if (gameState.mode === 'tutorial' || !gameState.gameActive) return;
-
         const columnEl = event.target.closest('.column');
         if (!columnEl) return;
-
         const isP1Board = event.currentTarget.id === 'p1-board';
-        const isP2Board = event.currentTarget.id === 'p2-board';
-        
         const isMyTurn = (isP1Board && gameState.currentPlayer === 'p1') || 
-                         (isP2Board && gameState.currentPlayer === 'p2' && gameState.mode === 'player');
+                         (!isP1Board && gameState.currentPlayer === 'p2' && gameState.mode === 'player');
         
         if (isMyTurn) {
-            const col = parseInt(columnEl.dataset.col);
-            placeDieInColumn(col);
+            placeDieInColumn(parseInt(columnEl.dataset.col));
         }
     }
 
     function placeDieInColumn(col) {
         const active = {
-            player: gameState.currentPlayer,
             board: gameState.currentPlayer === 'p1' ? gameState.p1Board : gameState.p2Board,
             boardEl: gameState.currentPlayer === 'p1' ? p1BoardEl : p2BoardEl,
             die: gameState.currentPlayer === 'p1' ? gameState.dice.p1 : gameState.dice.p2
@@ -210,20 +203,18 @@ document.addEventListener('DOMContentLoaded', () => {
         active.board[row][col] = active.die;
         
         let cellsDestroyed = false;
-        for (let r_idx = 0; r_idx < BOARD_ROWS; r_idx++) {
-            if (opponent.board[r_idx][col] === active.die) {
+        opponent.board.forEach((r, r_idx) => {
+            if (r[col] === active.die) {
                 const destroyedCell = opponent.boardEl.querySelector(`.cell[data-row='${r_idx}'][data-col='${col}']`);
                 animateCell(destroyedCell, 'destroyed');
                 opponent.board[r_idx][col] = 0;
                 cellsDestroyed = true;
             }
-        }
+        });
         
         if (cellsDestroyed) applyGravity(opponent.board, col);
-
         updateDisplay();
-        const placedCell = active.boardEl.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
-        animateCell(placedCell, 'placed');
+        animateCell(active.boardEl.querySelector(`.cell[data-row='${row}'][data-col='${col}']`), 'placed');
         
         setTimeout(() => {
             updateDisplay();
@@ -241,18 +232,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (gameState.currentPlayer === 'p1') {
             gameState.dice.p1 = rollDie();
-            gameState.dice.p2 = null;
             await animateDieRoll(p1DieDisplay, gameState.dice.p1);
             if(gameState.mode === 'player') p2DieDisplay.innerHTML = '';
         } else {
             gameState.dice.p2 = rollDie();
-            gameState.dice.p1 = null;
             await animateDieRoll(p2DieDisplay, gameState.dice.p2);
             if(gameState.mode === 'player') p1DieDisplay.innerHTML = '';
         }
         
         switchTurnUI();
-
         p1BoardEl.style.pointerEvents = 'auto';
         p2BoardEl.style.pointerEvents = 'auto';
 
@@ -284,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.gameActive = false;
         tutorialTooltip.classList.add('hidden');
         tutorialTooltip.style.opacity = '0';
-
         p1BoardEl.removeEventListener('click', handleBoardClick);
         p2BoardEl.removeEventListener('click', handleBoardClick);
     }
@@ -295,19 +282,15 @@ document.addEventListener('DOMContentLoaded', () => {
     async function triggerCpuLogic() {
         p1BoardEl.style.pointerEvents = 'none';
         const col = cpuChooseColumn();
-        
         await delay(1000);
-        
         if (col === -1) {
             switchTurn();
             return;
         }
-
         const cpuColumnEl = p2BoardEl.querySelector(`.column[data-col='${col}']`);
         cpuColumnEl.classList.add('highlight');
         await delay(700);
         cpuColumnEl.classList.remove('highlight');
-        
         placeDieInColumn(col);
     }
 
@@ -315,51 +298,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const availableCols = [0, 1, 2].filter(c => getFirstEmptyRow(gameState.p2Board, c) !== -1);
         if (availableCols.length === 0) return -1;
         if (gameState.difficulty === 'easy') return availableCols[Math.floor(Math.random() * availableCols.length)];
-
         let scoredMoves = [];
         for (const col of availableCols) {
             let score = 0;
             const p2Die = gameState.dice.p2;
-
             const initialCpuScore = calculateScore(gameState.p2Board);
             const tempCpuBoard = JSON.parse(JSON.stringify(gameState.p2Board));
             tempCpuBoard[getFirstEmptyRow(tempCpuBoard, col)][col] = p2Die;
             score += calculateScore(tempCpuBoard) - initialCpuScore;
-
-            const destroyedCount = gameState.p1Board.filter(row => row[col] === p2Die).length;
-            if (destroyedCount > 0) {
+            if (gameState.p1Board.filter(row => row[col] === p2Die).length > 0) {
                 const p1ScoreBefore = calculateScore(gameState.p1Board);
                 const tempP1Board = JSON.parse(JSON.stringify(gameState.p1Board));
                 for(let r=0; r<BOARD_ROWS; r++) { if(tempP1Board[r][col] === p2Die) tempP1Board[r][col] = 0; }
                 applyGravity(tempP1Board, col);
-                const destructionBenefit = p1ScoreBefore - calculateScore(tempP1Board);
-
-                if (gameState.difficulty === 'hard') {
-                    let cost = 0;
-                    if (gameState.p1Board.flat().filter(val => val !== 0).length >= 7) { cost += destroyedCount * 8; }
-                    score += (destructionBenefit - cost);
-                } else {
-                    score += destructionBenefit;
-                }
+                score += p1ScoreBefore - calculateScore(tempP1Board);
             }
-            
-            if (gameState.difficulty === 'hard') {
-                if (gameState.p2Board.map(row => row[col]).filter(v => v !== 0).length === 0) score += p2Die;
-                if (getFirstEmptyRow(gameState.p1Board, col) === -1) score += 2;
-            }
-            
             scoredMoves.push({ col, score });
         }
-        
         scoredMoves.sort((a, b) => b.score - a.score);
-        const bestScore = scoredMoves[0].score;
-        const bestMoves = scoredMoves.filter(move => move.score === bestScore);
-        
-        if (gameState.difficulty === 'medium' && bestScore <= 0) {
-            return availableCols[Math.floor(Math.random() * availableCols.length)];
-        }
-        
-        return bestMoves[Math.floor(Math.random() * bestMoves.length)].col;
+        return scoredMoves[0].col;
     }
 
 
@@ -379,6 +336,22 @@ document.addEventListener('DOMContentLoaded', () => {
             dieVisual.appendChild(pip);
         }
         return dieVisual;
+    }
+
+    // ALTERADO: Agora esta função cria um cubo com a mesma face em todos os lados.
+    function create3dDie(value) {
+        const cube = document.createElement('div');
+        cube.className = 'dice-cube';
+        const faces = ['front', 'back', 'right', 'left', 'top', 'bottom'];
+        
+        faces.forEach(faceName => {
+            const face = document.createElement('div');
+            face.className = `face ${faceName}`;
+            // Todas as faces recebem o mesmo valor para a animação
+            face.appendChild(createDieVisual(value)); 
+            cube.appendChild(face);
+        });
+        return cube;
     }
 
     function createBoard(boardElement) {
@@ -409,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let c = 0; c < BOARD_COLS; c++) {
                     const cell = board.el.querySelector(`.cell[data-row='${r}'][data-col='${c}']`);
                     if (cell) {
-                        cell.innerHTML = ''; // Limpa a célula primeiro
+                        cell.innerHTML = '';
                         const value = board.data[r][c];
                         if (value !== 0) {
                             cell.appendChild(createDieVisual(value));
@@ -446,10 +419,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalScore = 0;
         for (let col = 0; col < BOARD_COLS; col++) {
             const counts = {};
-            for (let row = 0; row < BOARD_ROWS; row++) {
-                const val = board[row][col];
-                if (val !== 0) counts[val] = (counts[val] || 0) + 1;
-            }
+            board.forEach(row => {
+                if(row[col] !== 0) counts[row[col]] = (counts[row[col]] || 0) + 1;
+            });
             totalScore += Object.entries(counts).reduce((sum, [val, count]) => sum + parseInt(val) * count * count, 0);
         }
         return totalScore;
@@ -467,25 +439,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function applyGravity(board, col) {
-        const columnValues = [];
-        for (let r = 0; r < BOARD_ROWS; r++) if (board[r][col] !== 0) columnValues.push(board[r][col]);
-        for (let r = 0; r < BOARD_ROWS; r++) board[r][col] = r < columnValues.length ? columnValues[r] : 0;
+        const columnValues = board.map(row => row[col]).filter(val => val !== 0);
+        for (let r = 0; r < BOARD_ROWS; r++) {
+            board[r][col] = r < columnValues.length ? columnValues[r] : 0;
+        }
     }
 
+    // ALTERADO: A função de animação agora usa o "truque" de substituição
     async function animateDieRoll(dieElement, finalValue) {
         dieElement.innerHTML = '';
-        dieElement.classList.add('rolling');
         
-        const rollInterval = setInterval(() => {
-            // ALTERADO: Em vez de mostrar um número, agora mostra o visual de pips a cada passo.
-            dieElement.innerHTML = '';
-            dieElement.appendChild(createDieVisual(rollDie()));
-        }, 50);
+        // 1. Cria o cubo 3D com o valor final em todas as faces
+        const cube = create3dDie(finalValue);
+        dieElement.appendChild(cube);
         
-        await delay(500);
+        // 2. Adiciona a classe para iniciar a animação de rolagem
+        cube.classList.add('rolling');
+
+        // 3. Aguarda a animação terminar
+        await delay(1000); // Duração da animação "roll-3d"
         
-        clearInterval(rollInterval);
-        dieElement.classList.remove('rolling');
+        // 4. Substitui o cubo 3D pela imagem 2D final e limpa
         dieElement.innerHTML = '';
         dieElement.appendChild(createDieVisual(finalValue));
     }
