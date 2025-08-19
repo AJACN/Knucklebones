@@ -14,6 +14,7 @@
         <h1>Knucklebones</h1>
         <h2>Selecione o Modo de Jogo</h2>
         <div class="menu-buttons">
+            <button class="menu-btn" data-mode="tutorial">Tutorial</button>
             <button class="menu-btn" data-mode="cpu">Contra CPU</button>
             <button class="menu-btn" data-mode="player">Contra Jogador</button>
         </div>
@@ -38,6 +39,11 @@
             </div>
 
             <div id="status-area">
+                <div id="tutorial-tooltip" class="hidden">
+                    <p id="tutorial-text"></p>
+                    <div class="tooltip-arrow"></div>
+                </div>
+
                 <p id="turn-info">Sua vez!</p>
                 <div id="dice-container">
                     <div class="dice-display-area">

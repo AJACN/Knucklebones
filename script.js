@@ -1,9 +1,32 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // ==================================================================
+    // --- CONSTANTES E ESTADO DO JOGO ---
+    // ==================================================================
+
+    const BOARD_ROWS = 3;
+    const BOARD_COLS = 3;
+    const DICE_SIDES = 6;
+
+    const gameState = {
+        p1Board: [],
+        p2Board: [],
+        currentPlayer: 'p1',
+        dice: { p1: null, p2: null },
+        gameActive: false,
+        mode: 'cpu',
+        difficulty: 'medium',
+        tutorialStep: 0
+    };
+
+    // ==================================================================
     // --- ELEMENTOS DO DOM ---
+    // ==================================================================
     const gameModeSelection = document.getElementById('game-mode-selection');
     const difficultySelection = document.getElementById('difficulty-selection');
     const backToModeSelectButton = document.getElementById('back-to-mode-select');
     const gameWrapper = document.getElementById('game-wrapper');
+    const tutorialTooltip = document.getElementById('tutorial-tooltip');
+    const tutorialText = document.getElementById('tutorial-text');
     const p1Label = document.getElementById('p1-label');
     const p2Label = document.getElementById('p2-label');
     const p1BoardEl = document.getElementById('p1-board');
@@ -16,50 +39,355 @@ document.addEventListener('DOMContentLoaded', () => {
     const messageInfoElement = document.getElementById('message-info');
     const mainMenuButton = document.getElementById('main-menu-button');
 
-    // --- ESTADO DO JOGO ---
-    let p1Board, p2Board, currentPlayer, p1Die, p2Die, gameActive, gameMode, difficulty;
 
-    // --- FUNÇÕES DE ANIMAÇÃO, UTILIDADE E LÓGICA ---
+    // ==================================================================
+    // --- LÓGICA DO TUTORIAL ---
+    // ==================================================================
+    const tutorialSteps = [
+        { text: "Bem-vindo! O objetivo é ter mais pontos que seu oponente. Você rolou um 3. Clique na primeira coluna para posicioná-lo.", p1Die: 3, p2Board: [[0,0,0],[0,0,0],[0,0,0]], requiredCol: 0 },
+        { text: "Ótimo! Agora, vamos fazer um combo. Coloque este 4 na coluna do meio para começar.", p1Die: 4, p2Board: [[0,0,0],[0,0,0],[0,0,0]], requiredCol: 1 },
+        { text: "Excelente! Coloque outro 4 na mesma coluna. Dados iguais multiplicam a pontuação da coluna!", p1Die: 4, p2Board: [[0,0,0],[0,0,0],[0,0,0]], requiredCol: 1 },
+        { text: "Perfeito! (4+4) x 2 = 16 pontos! Agora, ataque. Coloque este 5 na terceira coluna para destruir o dado do oponente.", p1Die: 5, p2Board: [[0,0,5],[0,0,0],[0,0,0]], requiredCol: 2 },
+        { text: "Exato! Você removeu o dado dele. Se houvesse dados acima, eles cairiam. Agora o oponente vai jogar.", p1Die: null, requiredCol: null },
+        { text: "O oponente jogou um 6. Você completou o tutorial! Clique em 'Menu Principal' para jogar de verdade.", p1Die: null, requiredCol: null }
+    ];
 
-    async function animateDieRoll(dieElement, finalValue) {
-        dieElement.classList.add('rolling');
-        const rollInterval = setInterval(() => {
-            dieElement.textContent = Math.floor(Math.random() * 6) + 1;
-        }, 50);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        clearInterval(rollInterval);
-        dieElement.classList.remove('rolling');
-        dieElement.textContent = finalValue;
+    function startTutorial() {
+        gameState.tutorialStep = 0;
+        gameState.mode = 'tutorial';
+        initializeGame();
     }
 
-    function animateCell(cell, animationClass) {
-        if (cell) {
-            cell.classList.add(animationClass);
-            cell.addEventListener('animationend', () => {
-                cell.classList.remove(animationClass);
-            }, { once: true });
-        }
-    }
+    async function runTutorialStep() {
+        if (gameState.tutorialStep >= tutorialSteps.length) return;
+        const step = tutorialSteps[gameState.tutorialStep];
+        
+        gameState.dice.p1 = step.p1Die;
+        if (step.p2Board) gameState.p2Board = JSON.parse(JSON.stringify(step.p2Board));
+        
+        tutorialText.textContent = step.text;
+        updateDisplay();
+        
+        if (gameState.dice.p1) await animateDieRoll(p1DieDisplay, gameState.dice.p1);
+        
+        p1BoardEl.querySelectorAll('.column').forEach(c => c.classList.remove('highlight'));
 
-    function applyGravity(board, col) {
-        const columnValues = [];
-        for (let r = 0; r < 3; r++) {
-            if (board[r][col] !== 0) {
-                columnValues.push(board[r][col]);
+        if (step.requiredCol !== null) {
+            const requiredColumnEl = p1BoardEl.querySelector(`.column[data-col='${step.requiredCol}']`);
+            if (requiredColumnEl) {
+                requiredColumnEl.classList.add('highlight');
+                requiredColumnEl.addEventListener('click', handleTutorialClick, { once: true });
+                await delay(100);
+                tutorialTooltip.classList.remove('hidden');
+                positionTutorialTooltip(requiredColumnEl);
+                tutorialTooltip.style.opacity = '1';
+            }
+        } else {
+            tutorialTooltip.classList.remove('hidden');
+            positionTutorialTooltip(null);
+            tutorialTooltip.style.opacity = '1';
+
+            if (gameState.tutorialStep === 4) {
+                await delay(1500);
+                gameState.p2Board[0][0] = 6;
+                p2DieDisplay.innerHTML = ''; // Limpa antes de adicionar
+                p2DieDisplay.appendChild(createDieVisual(6));
+                animateCell(p2BoardEl.querySelector(`.cell[data-row='0'][data-col='0']`), 'placed');
+                updateDisplay();
+                await delay(2500);
+                gameState.tutorialStep++;
+                runTutorialStep();
+            } else if (gameState.tutorialStep === 5) {
+                turnInfoElement.textContent = "Tutorial Concluído!";
             }
         }
-        for (let r = 0; r < 3; r++) {
-            board[r][col] = r < columnValues.length ? columnValues[r] : 0;
+    }
+
+    async function handleTutorialClick(event) {
+        const clickedCol = parseInt(event.currentTarget.dataset.col);
+        const step = tutorialSteps[gameState.tutorialStep];
+        if (clickedCol !== step.requiredCol) return;
+        
+        tutorialTooltip.style.opacity = '0';
+        event.currentTarget.classList.remove('highlight');
+    
+        const row = getFirstEmptyRow(gameState.p1Board, clickedCol);
+        gameState.p1Board[row][clickedCol] = gameState.dice.p1;
+    
+        if (step.requiredCol === 2) {
+            gameState.p2Board[0][2] = 0;
+            animateCell(p2BoardEl.querySelector(`.cell[data-row='0'][data-col='2']`), 'destroyed');
         }
+    
+        updateDisplay();
+        animateCell(p1BoardEl.querySelector(`.cell[data-row='${row}'][data-col='${clickedCol}']`), 'placed');
+        
+        await delay(1500);
+        gameState.tutorialStep++;
+        tutorialTooltip.classList.add('hidden');
+        runTutorialStep();
+    }
+    
+    // ==================================================================
+    // --- FUNÇÕES DE LÓGICA E FLUXO DE JOGO ---
+    // ==================================================================
+    function initializeGame() {
+        gameWrapper.classList.remove('hidden');
+        difficultySelection.classList.add('hidden');
+        gameModeSelection.classList.add('hidden');
+
+        createBoard(p1BoardEl);
+        createBoard(p2BoardEl);
+        gameState.p1Board = Array(BOARD_ROWS).fill(0).map(() => Array(BOARD_COLS).fill(0));
+        gameState.p2Board = Array(BOARD_ROWS).fill(0).map(() => Array(BOARD_COLS).fill(0));
+        
+        gameState.gameActive = true;
+        gameState.currentPlayer = 'p1';
+        gameState.dice.p1 = rollDie();
+        gameState.dice.p2 = null;
+        messageInfoElement.textContent = "";
+        tutorialTooltip.classList.add('hidden');
+
+        p1BoardEl.addEventListener('click', handleBoardClick);
+        p2BoardEl.addEventListener('click', handleBoardClick);
+
+        if (gameState.mode === 'tutorial') {
+            setupLabels('Você', 'Oponente', 'Você Rolou', 'Oponente');
+            runTutorialStep();
+            return;
+        }
+
+        if (gameState.mode === 'cpu') {
+            setupLabels('Você', 'CPU', 'Você Rolou', 'CPU Rolou');
+            p2BoardEl.classList.remove('human-player');
+        } else {
+            setupLabels('Jogador 1', 'Jogador 2', 'Jogador 1', 'Jogador 2');
+            p2BoardEl.classList.add('human-player');
+        }
+        
+        updateDisplay();
+        animateDieRoll(p1DieDisplay, gameState.dice.p1);
+        p2DieDisplay.innerHTML = ''; // Limpa o display
+        switchTurnUI();
+    }
+    
+    function handleBoardClick(event) {
+        if (gameState.mode === 'tutorial' || !gameState.gameActive) return;
+
+        const columnEl = event.target.closest('.column');
+        if (!columnEl) return;
+
+        const isP1Board = event.currentTarget.id === 'p1-board';
+        const isP2Board = event.currentTarget.id === 'p2-board';
+        
+        const isMyTurn = (isP1Board && gameState.currentPlayer === 'p1') || 
+                         (isP2Board && gameState.currentPlayer === 'p2' && gameState.mode === 'player');
+        
+        if (isMyTurn) {
+            const col = parseInt(columnEl.dataset.col);
+            placeDieInColumn(col);
+        }
+    }
+
+    function placeDieInColumn(col) {
+        const active = {
+            player: gameState.currentPlayer,
+            board: gameState.currentPlayer === 'p1' ? gameState.p1Board : gameState.p2Board,
+            boardEl: gameState.currentPlayer === 'p1' ? p1BoardEl : p2BoardEl,
+            die: gameState.currentPlayer === 'p1' ? gameState.dice.p1 : gameState.dice.p2
+        };
+        const opponent = {
+            board: gameState.currentPlayer === 'p1' ? gameState.p2Board : gameState.p1Board,
+            boardEl: gameState.currentPlayer === 'p1' ? p2BoardEl : p1BoardEl
+        };
+
+        const row = getFirstEmptyRow(active.board, col);
+        if (row === -1) return;
+
+        p1BoardEl.style.pointerEvents = 'none';
+        p2BoardEl.style.pointerEvents = 'none';
+
+        active.board[row][col] = active.die;
+        
+        let cellsDestroyed = false;
+        for (let r_idx = 0; r_idx < BOARD_ROWS; r_idx++) {
+            if (opponent.board[r_idx][col] === active.die) {
+                const destroyedCell = opponent.boardEl.querySelector(`.cell[data-row='${r_idx}'][data-col='${col}']`);
+                animateCell(destroyedCell, 'destroyed');
+                opponent.board[r_idx][col] = 0;
+                cellsDestroyed = true;
+            }
+        }
+        
+        if (cellsDestroyed) applyGravity(opponent.board, col);
+
+        updateDisplay();
+        const placedCell = active.boardEl.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
+        animateCell(placedCell, 'placed');
+        
+        setTimeout(() => {
+            updateDisplay();
+            switchTurn();
+        }, cellsDestroyed ? 500 : 100);
+    }
+    
+    async function switchTurn() {
+        if (isBoardFull(gameState.p1Board) || isBoardFull(gameState.p2Board)) {
+            endGame();
+            return;
+        }
+        
+        gameState.currentPlayer = (gameState.currentPlayer === 'p1') ? 'p2' : 'p1';
+        
+        if (gameState.currentPlayer === 'p1') {
+            gameState.dice.p1 = rollDie();
+            gameState.dice.p2 = null;
+            await animateDieRoll(p1DieDisplay, gameState.dice.p1);
+            if(gameState.mode === 'player') p2DieDisplay.innerHTML = '';
+        } else {
+            gameState.dice.p2 = rollDie();
+            gameState.dice.p1 = null;
+            await animateDieRoll(p2DieDisplay, gameState.dice.p2);
+            if(gameState.mode === 'player') p1DieDisplay.innerHTML = '';
+        }
+        
+        switchTurnUI();
+
+        p1BoardEl.style.pointerEvents = 'auto';
+        p2BoardEl.style.pointerEvents = 'auto';
+
+        if (gameState.mode === 'cpu' && gameState.currentPlayer === 'p2') {
+            triggerCpuLogic();
+        }
+    }
+
+    function endGame() {
+        gameState.gameActive = false;
+        const p1s = calculateScore(gameState.p1Board);
+        const p2s = calculateScore(gameState.p2Board);
+        const p1Name = gameState.mode === 'cpu' ? 'Você' : 'Jogador 1';
+        const p2Name = gameState.mode === 'cpu' ? 'CPU' : 'Jogador 2';
+        
+        if (p1s > p2s) messageInfoElement.textContent = `🎉 ${p1Name} Venceu!`;
+        else if (p2s > p1s) messageInfoElement.textContent = `☠️ ${p2Name} Venceu!`;
+        else messageInfoElement.textContent = "⚖️ Empate!";
+        
+        turnInfoElement.textContent = "Fim de Jogo!";
+        switchTurnUI();
+    }
+    
+    function returnToMainMenu() {
+        gameWrapper.classList.add('hidden');
+        difficultySelection.classList.add('hidden');
+        gameModeSelection.classList.remove('hidden');
+        
+        gameState.gameActive = false;
+        tutorialTooltip.classList.add('hidden');
+        tutorialTooltip.style.opacity = '0';
+
+        p1BoardEl.removeEventListener('click', handleBoardClick);
+        p2BoardEl.removeEventListener('click', handleBoardClick);
+    }
+
+    // ==================================================================
+    // --- LÓGICA DA CPU ---
+    // ==================================================================
+    async function triggerCpuLogic() {
+        p1BoardEl.style.pointerEvents = 'none';
+        const col = cpuChooseColumn();
+        
+        await delay(1000);
+        
+        if (col === -1) {
+            switchTurn();
+            return;
+        }
+
+        const cpuColumnEl = p2BoardEl.querySelector(`.column[data-col='${col}']`);
+        cpuColumnEl.classList.add('highlight');
+        await delay(700);
+        cpuColumnEl.classList.remove('highlight');
+        
+        placeDieInColumn(col);
+    }
+
+    function cpuChooseColumn() {
+        const availableCols = [0, 1, 2].filter(c => getFirstEmptyRow(gameState.p2Board, c) !== -1);
+        if (availableCols.length === 0) return -1;
+        if (gameState.difficulty === 'easy') return availableCols[Math.floor(Math.random() * availableCols.length)];
+
+        let scoredMoves = [];
+        for (const col of availableCols) {
+            let score = 0;
+            const p2Die = gameState.dice.p2;
+
+            const initialCpuScore = calculateScore(gameState.p2Board);
+            const tempCpuBoard = JSON.parse(JSON.stringify(gameState.p2Board));
+            tempCpuBoard[getFirstEmptyRow(tempCpuBoard, col)][col] = p2Die;
+            score += calculateScore(tempCpuBoard) - initialCpuScore;
+
+            const destroyedCount = gameState.p1Board.filter(row => row[col] === p2Die).length;
+            if (destroyedCount > 0) {
+                const p1ScoreBefore = calculateScore(gameState.p1Board);
+                const tempP1Board = JSON.parse(JSON.stringify(gameState.p1Board));
+                for(let r=0; r<BOARD_ROWS; r++) { if(tempP1Board[r][col] === p2Die) tempP1Board[r][col] = 0; }
+                applyGravity(tempP1Board, col);
+                const destructionBenefit = p1ScoreBefore - calculateScore(tempP1Board);
+
+                if (gameState.difficulty === 'hard') {
+                    let cost = 0;
+                    if (gameState.p1Board.flat().filter(val => val !== 0).length >= 7) { cost += destroyedCount * 8; }
+                    score += (destructionBenefit - cost);
+                } else {
+                    score += destructionBenefit;
+                }
+            }
+            
+            if (gameState.difficulty === 'hard') {
+                if (gameState.p2Board.map(row => row[col]).filter(v => v !== 0).length === 0) score += p2Die;
+                if (getFirstEmptyRow(gameState.p1Board, col) === -1) score += 2;
+            }
+            
+            scoredMoves.push({ col, score });
+        }
+        
+        scoredMoves.sort((a, b) => b.score - a.score);
+        const bestScore = scoredMoves[0].score;
+        const bestMoves = scoredMoves.filter(move => move.score === bestScore);
+        
+        if (gameState.difficulty === 'medium' && bestScore <= 0) {
+            return availableCols[Math.floor(Math.random() * availableCols.length)];
+        }
+        
+        return bestMoves[Math.floor(Math.random() * bestMoves.length)].col;
+    }
+
+
+    // ==================================================================
+    // --- FUNÇÕES UTILITÁRIAS E DE EXIBIÇÃO ---
+    // ==================================================================
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+    const rollDie = () => Math.floor(Math.random() * DICE_SIDES) + 1;
+
+    function createDieVisual(value) {
+        const dieVisual = document.createElement('div');
+        dieVisual.className = 'die-visual';
+        dieVisual.dataset.value = value;
+        for (let i = 0; i < value; i++) {
+            const pip = document.createElement('span');
+            pip.className = 'pip';
+            dieVisual.appendChild(pip);
+        }
+        return dieVisual;
     }
 
     function createBoard(boardElement) {
         boardElement.innerHTML = '';
-        for (let c = 0; c < 3; c++) {
+        for (let c = 0; c < BOARD_COLS; c++) {
             const column = document.createElement('div');
             column.className = 'column';
             column.dataset.col = c;
-            for (let r = 0; r < 3; r++) {
+            for (let r = 0; r < BOARD_ROWS; r++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.dataset.row = r;
@@ -70,286 +398,147 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateDisplay() {
+        const boards = [
+            { data: gameState.p1Board, el: p1BoardEl, scoreEl: document.getElementById('p1-score') },
+            { data: gameState.p2Board, el: p2BoardEl, scoreEl: document.getElementById('p2-score') }
+        ];
+
+        boards.forEach(board => {
+            for (let r = 0; r < BOARD_ROWS; r++) {
+                for (let c = 0; c < BOARD_COLS; c++) {
+                    const cell = board.el.querySelector(`.cell[data-row='${r}'][data-col='${c}']`);
+                    if (cell) {
+                        cell.innerHTML = ''; // Limpa a célula primeiro
+                        const value = board.data[r][c];
+                        if (value !== 0) {
+                            cell.appendChild(createDieVisual(value));
+                        }
+                    }
+                }
+            }
+            board.scoreEl.textContent = calculateScore(board.data);
+        });
+    }
+
+    function switchTurnUI() {
+        if (!gameState.gameActive) {
+            p1Area.classList.remove('active-player');
+            p2Area.classList.remove('active-player');
+            return;
+        }
+        const p2Name = gameState.mode === 'cpu' ? 'CPU' : 'Jogador 2';
+        const p1Name = gameState.mode === 'player' ? 'Vez do Jogador 1' : 'Sua vez!';
+        
+        turnInfoElement.textContent = (gameState.currentPlayer === 'p1') ? p1Name : `Vez do ${p2Name}!`;
+        p1Area.classList.toggle('active-player', gameState.currentPlayer === 'p1');
+        p2Area.classList.toggle('active-player', gameState.currentPlayer === 'p2');
+    }
+
+    function setupLabels(p1Name, p2Name, p1DieLabel, p2DieLabel) {
+        p1Label.innerHTML = `${p1Name} <span class="score">(<span id="p1-score">0</span>)</span>`;
+        p2Label.innerHTML = `${p2Name} <span class="score">(<span id="p2-score">0</span>)</span>`;
+        document.getElementById('p1-die-label').textContent = p1DieLabel;
+        document.getElementById('p2-die-label').textContent = p2DieLabel;
+    }
+    
     function calculateScore(board) {
         let totalScore = 0;
-        for (let col = 0; col < 3; col++) {
-            const columnValues = [];
-            for (let row = 0; row < 3; row++) {
-                if (board[row][col] !== 0) columnValues.push(board[row][col]);
+        for (let col = 0; col < BOARD_COLS; col++) {
+            const counts = {};
+            for (let row = 0; row < BOARD_ROWS; row++) {
+                const val = board[row][col];
+                if (val !== 0) counts[val] = (counts[val] || 0) + 1;
             }
-            const counts = columnValues.reduce((acc, val) => ({ ...acc, [val]: (acc[val] || 0) + 1 }), {});
             totalScore += Object.entries(counts).reduce((sum, [val, count]) => sum + parseInt(val) * count * count, 0);
         }
         return totalScore;
     }
 
     function getFirstEmptyRow(board, col) {
-        for (let r = 0; r < 3; r++) {
+        for (let r = 0; r < BOARD_ROWS; r++) {
             if (board[r][col] === 0) return r;
         }
         return -1;
     }
 
     function isBoardFull(board) {
-        return board.every(row => row.every(cell => cell !== 0));
+        return board[BOARD_ROWS - 1].every(cell => cell !== 0);
     }
     
-    // ==================================================================
-    // IA ATUALIZADA COM ANÁLISE DE CUSTO-BENEFÍCIO
-    // ==================================================================
-    function cpuChooseColumn() {
-        const availableCols = [0, 1, 2].filter(c => getFirstEmptyRow(p2Board, c) !== -1);
-        if (availableCols.length === 0) return -1;
+    function applyGravity(board, col) {
+        const columnValues = [];
+        for (let r = 0; r < BOARD_ROWS; r++) if (board[r][col] !== 0) columnValues.push(board[r][col]);
+        for (let r = 0; r < BOARD_ROWS; r++) board[r][col] = r < columnValues.length ? columnValues[r] : 0;
+    }
 
-        if (difficulty === 'easy') {
-            return availableCols[Math.floor(Math.random() * availableCols.length)];
-        }
-
-        let scoredMoves = [];
-        for (const col of availableCols) {
-            let score = 0;
-            const myColData = p2Board.map(row => row[col]).filter(val => val !== 0);
-
-            // 1. PONTUAÇÃO DE COMBO (ganho de pontos para si mesmo)
-            const initialCpuScore = calculateScore(p2Board);
-            const tempCpuBoard = JSON.parse(JSON.stringify(p2Board));
-            const rowToPlace = getFirstEmptyRow(tempCpuBoard, col);
-            tempCpuBoard[rowToPlace][col] = p2Die;
-            score += calculateScore(tempCpuBoard) - initialCpuScore;
-
-            // 2. PONTUAÇÃO DE ATAQUE (com custo-benefício)
-            const destroyedCount = p1Board.map(row => row[col]).filter(val => val === p2Die).length;
-            if (destroyedCount > 0) {
-                // BENEFÍCIO: Calcula os pontos que seriam removidos do oponente.
-                const p1ScoreBefore = calculateScore(p1Board);
-                const tempP1Board = JSON.parse(JSON.stringify(p1Board));
-                for(let r=0; r<3; r++) { if(tempP1Board[r][col] === p2Die) tempP1Board[r][col] = 0; }
-                applyGravity(tempP1Board, col); // Aplica gravidade para um cálculo de score preciso
-                const p1ScoreAfter = calculateScore(tempP1Board);
-                const benefit = p1ScoreBefore - p1ScoreAfter;
-
-                if (difficulty === 'hard') {
-                    // CUSTO: Calcula o prejuízo de devolver espaços vazios.
-                    let cost = 0;
-                    const p1CellCount = p1Board.flat().filter(val => val !== 0).length;
-                    
-                    // Custo é maior se o dado destruído for de baixo valor (1 ou 2).
-                    if (p2Die <= 2) {
-                        cost += destroyedCount * 5; 
-                    }
-                    // Custo é altíssimo se o tabuleiro do oponente estiver quase cheio.
-                    if (p1CellCount >= 7) {
-                        cost += destroyedCount * 8;
-                    }
-                    score += (benefit - cost); // A pontuação do ataque pode ser negativa se for uma má ideia.
-                } else { // Dificuldade Média não calcula o custo e ataca de forma mais simples.
-                    score += destroyedCount * p2Die * 3;
-                }
-            }
-
-            // --- LÓGICA ADICIONAL APENAS PARA O MODO DIFÍCIL ---
-            if (difficulty === 'hard') {
-                // 3. Valor Intrínseco e Potencial Futuro
-                score += p2Die * 0.1; // Bônus pequeno pelo valor do dado
-                if (myColData.length === 0) {
-                    score += p2Die; // Bônus maior para iniciar uma coluna com um dado alto (investimento)
-                } else if (myColData.includes(p2Die)) {
-                    score += p2Die * 0.5; // Bônus por preparar um combo
-                }
-
-                // 4. Análise de Risco: Não colocar dados altos em perigo
-                const playerCanDestroy = getFirstEmptyRow(p1Board, col) !== -1;
-                if (playerCanDestroy && p2Die >= 5) {
-                    const playerHasMatch = p1Board.some(row => row.includes(p2Die));
-                    if (!playerHasMatch) score -= p2Die * 2;
-                }
-                
-                // 5. Análise de Segurança: Priorizar colunas seguras
-                const isSafeColumn = getFirstEmptyRow(p1Board, col) === -1;
-                if (isSafeColumn) {
-                    score += 2;
-                }
-            }
-            
-            scoredMoves.push({ col, score });
-        }
-
-        // Ordena as jogadas da melhor para a pior
-        scoredMoves.sort((a, b) => b.score - a.score);
-        const bestScore = scoredMoves[0].score;
-        const bestMoves = scoredMoves.filter(move => move.score === bestScore);
+    async function animateDieRoll(dieElement, finalValue) {
+        dieElement.innerHTML = '';
+        dieElement.classList.add('rolling');
         
-        // --- TOMADA DE DECISÃO ---
-        // Para o modo Médio, se a melhor jogada não for um ganho claro, joga aleatoriamente.
-        if (difficulty === 'medium' && bestScore <= 0) {
-            return availableCols[Math.floor(Math.random() * availableCols.length)];
-        }
-
-        // Para Difícil (ou Médio com uma boa jogada), escolhe aleatoriamente entre as melhores opções para não ser previsível.
-        return bestMoves[Math.floor(Math.random() * bestMoves.length)].col;
+        const rollInterval = setInterval(() => {
+            // ALTERADO: Em vez de mostrar um número, agora mostra o visual de pips a cada passo.
+            dieElement.innerHTML = '';
+            dieElement.appendChild(createDieVisual(rollDie()));
+        }, 50);
+        
+        await delay(500);
+        
+        clearInterval(rollInterval);
+        dieElement.classList.remove('rolling');
+        dieElement.innerHTML = '';
+        dieElement.appendChild(createDieVisual(finalValue));
     }
 
-    // --- LÓGICA DE INICIALIZAÇÃO E FLUXO DE JOGO ---
-    function initializeGame() {
-        gameWrapper.classList.remove('hidden');
-        difficultySelection.classList.add('hidden');
-        gameModeSelection.classList.add('hidden');
-        createBoard(p1BoardEl);
-        createBoard(p2BoardEl);
-        p1Board = Array(3).fill(0).map(() => Array(3).fill(0));
-        p2Board = Array(3).fill(0).map(() => Array(3).fill(0));
-        gameActive = true;
-        currentPlayer = 'p1';
-        p1Die = Math.floor(Math.random() * 6) + 1;
-        p2Die = null;
-        messageInfoElement.textContent = "";
-        if (gameMode === 'cpu') {
-            p1Label.innerHTML = `Você <span class="score">(<span id="p1-score">0</span>)</span>`;
-            p2Label.innerHTML = `CPU <span class="score">(<span id="p2-score">0</span>)</span>`;
-            document.getElementById('p1-die-label').textContent = 'Você Rolou';
-            document.getElementById('p2-die-label').textContent = 'CPU Rolou';
-            p2BoardEl.classList.remove('human-player');
-        } else {
-            p1Label.innerHTML = `Jogador 1 <span class="score">(<span id="p1-score">0</span>)</span>`;
-            p2Label.innerHTML = `Jogador 2 <span class="score">(<span id="p2-score">0</span>)</span>`;
-            document.getElementById('p1-die-label').textContent = 'Jogador 1';
-            document.getElementById('p2-die-label').textContent = 'Jogador 2';
-            p2BoardEl.classList.add('human-player');
+    function animateCell(cell, animationClass) {
+        if (cell) {
+            cell.classList.add(animationClass);
+            cell.addEventListener('animationend', () => cell.classList.remove(animationClass), { once: true });
         }
-        updateDisplay();
-        animateDieRoll(p1DieDisplay, p1Die);
-        p2DieDisplay.textContent = '';
-        switchTurnUI();
     }
-    function updateDisplay() {
-        [p1Board, p2Board].forEach((boardData, index) => {
-            const boardEl = index === 0 ? p1BoardEl : p2BoardEl;
-            for (let r = 0; r < 3; r++) {
-                for (let c = 0; c < 3; c++) {
-                    const cell = boardEl.querySelector(`.cell[data-row='${r}'][data-col='${c}']`);
-                    if(cell) cell.textContent = boardData[r][c] === 0 ? '' : boardData[r][c];
-                }
-            }
-        });
-        document.getElementById('p1-score').textContent = calculateScore(p1Board);
-        document.getElementById('p2-score').textContent = calculateScore(p2Board);
-    }
-    function handleColumnClick(event) {
-        if (!gameActive) return;
-        const col = parseInt(event.currentTarget.dataset.col);
-        const activePlayerBoard = (currentPlayer === 'p1') ? p1Board : p2Board;
-        const opponentBoard = (currentPlayer === 'p1') ? p2Board : p1Board;
-        const activePlayerDie = (currentPlayer === 'p1') ? p1Die : p2Die;
-        const row = getFirstEmptyRow(activePlayerBoard, col);
-        if (row === -1) return;
-        manageEventListeners(true);
-        activePlayerBoard[row][col] = activePlayerDie;
-        let cellsDestroyed = false;
-        for (let r_idx = 0; r_idx < 3; r_idx++) {
-            if (opponentBoard[r_idx][col] === activePlayerDie) {
-                const opponentBoardEl = (currentPlayer === 'p1') ? p2BoardEl : p1BoardEl;
-                const destroyedCell = opponentBoardEl.querySelector(`.cell[data-row='${r_idx}'][data-col='${col}']`);
-                animateCell(destroyedCell, 'destroyed');
-                opponentBoard[r_idx][col] = 0;
-                cellsDestroyed = true;
-            }
-        }
-        if (cellsDestroyed) applyGravity(opponentBoard, col);
-        const boardEl = (currentPlayer === 'p1') ? p1BoardEl : p2BoardEl;
-        const placedCell = boardEl.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
-        animateCell(placedCell, 'placed');
-        setTimeout(() => {
-            updateDisplay();
-            switchTurn();
-        }, cellsDestroyed ? 500 : 100);
-    }
-    function switchTurn() {
-        if (isBoardFull(p1Board) || isBoardFull(p2Board)) {
-            endGame();
+
+    function positionTutorialTooltip(targetColumnElement) {
+        if (!targetColumnElement) {
+            tutorialTooltip.style.top = '20px';
+            tutorialTooltip.style.left = '50%';
+            tutorialTooltip.style.transform = 'translateX(-50%)';
             return;
         }
-        currentPlayer = (currentPlayer === 'p1') ? 'p2' : 'p1';
-        if (currentPlayer === 'p1') {
-            p1Die = Math.floor(Math.random() * 6) + 1;
-            p2Die = null;
-            animateDieRoll(p1DieDisplay, p1Die);
-            if(gameMode === 'player') p2DieDisplay.textContent = '';
-        } else {
-            p2Die = Math.floor(Math.random() * 6) + 1;
-            p1Die = null;
-            animateDieRoll(p2DieDisplay, p2Die);
-            if(gameMode === 'player') p1DieDisplay.textContent = '';
-        }
-        switchTurnUI();
-        if (gameMode === 'cpu' && currentPlayer === 'p2') {
-            setTimeout(triggerCpuLogic, 1500);
-        }
-    }
-    function switchTurnUI() {
-        const p1Name = gameMode === 'cpu' ? 'Sua' : 'Jogador 1';
-        const p2Name = gameMode === 'cpu' ? 'CPU' : 'Jogador 2';
-        turnInfoElement.textContent = `Vez do ${currentPlayer === 'p1' ? p1Name : p2Name}!`;
-        p1Area.classList.toggle('active-player', currentPlayer === 'p1' && gameActive);
-        p2Area.classList.toggle('active-player', currentPlayer === 'p2' && gameActive);
-        manageEventListeners();
-    }
-    function manageEventListeners(removeAll = false) {
-        const p1Cols = p1BoardEl.querySelectorAll('.column');
-        const p2Cols = p2BoardEl.querySelectorAll('.column');
-        p1Cols.forEach(c => c.removeEventListener('click', handleColumnClick));
-        p2Cols.forEach(c => c.removeEventListener('click', handleColumnClick));
-        if (!gameActive || removeAll) return;
-        if (currentPlayer === 'p1') {
-            p1Cols.forEach(c => c.addEventListener('click', handleColumnClick));
-        } else if (gameMode === 'player') {
-             p2Cols.forEach(c => c.addEventListener('click', handleColumnClick));
-        }
-    }
-    function triggerCpuLogic() {
-        const col = cpuChooseColumn();
-        if (col === -1) {
-            switchTurn();
-            return;
-        }
-        const cpuColumn = p2BoardEl.querySelector(`.column[data-col='${col}']`);
-        handleColumnClick({ currentTarget: cpuColumn });
-    }
-    function endGame() {
-        gameActive = false;
-        const p1s = calculateScore(p1Board);
-        const p2s = calculateScore(p2Board);
-        const p1Name = gameMode === 'cpu' ? 'Você' : 'Jogador 1';
-        const p2Name = gameMode === 'cpu' ? 'CPU' : 'Jogador 2';
-        if (p1s > p2s) messageInfoElement.textContent = `🎉 ${p1Name} Venceu!`;
-        else if (p2s > p1s) messageInfoElement.textContent = `☠️ ${p2Name} Venceu!`;
-        else messageInfoElement.textContent = "⚖️ Empate!";
-        turnInfoElement.textContent = "Fim de Jogo!";
-        switchTurnUI();
+        const rect = targetColumnElement.getBoundingClientRect();
+        const wrapperRect = gameWrapper.getBoundingClientRect();
+        tutorialTooltip.style.top = `${rect.top - wrapperRect.top - tutorialTooltip.offsetHeight - 15}px`;
+        tutorialTooltip.style.left = `${rect.left - wrapperRect.left + rect.width / 2}px`;
+        tutorialTooltip.style.transform = 'translateX(-50%)';
     }
 
+    // ==================================================================
     // --- EVENT LISTENERS DOS MENUS ---
+    // ==================================================================
     document.querySelectorAll('[data-mode]').forEach(button => {
         button.addEventListener('click', () => {
-            gameMode = button.dataset.mode;
+            const mode = button.dataset.mode;
             gameModeSelection.classList.add('hidden');
-            if (gameMode === 'cpu') {
+            if (mode === 'tutorial') {
+                startTutorial();
+            } else if (mode === 'cpu') {
+                gameState.mode = 'cpu';
                 difficultySelection.classList.remove('hidden');
             } else {
+                gameState.mode = 'player';
                 initializeGame();
             }
         });
     });
+
     document.querySelectorAll('[data-difficulty]').forEach(button => {
         button.addEventListener('click', () => {
-            difficulty = button.dataset.difficulty;
+            gameState.difficulty = button.dataset.difficulty;
             initializeGame();
         });
     });
-    mainMenuButton.addEventListener('click', () => {
-        gameWrapper.classList.add('hidden');
-        difficultySelection.classList.add('hidden');
-        gameModeSelection.classList.remove('hidden');
-    });
+    
+    mainMenuButton.addEventListener('click', returnToMainMenu);
+
     backToModeSelectButton.addEventListener('click', () => {
         difficultySelection.classList.add('hidden');
         gameModeSelection.classList.remove('hidden');

@@ -1,10 +1,34 @@
 /* Importa a fonte do Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 
+/* --- Variáveis de Cor --- */
+:root {
+    --primary-color: #e94560;
+    --primary-rgb: 233, 69, 96; /* RGB para uso com transparência */
+    --primary-color-hover: #ff667f;
+    
+    --bg-dark: #1a1a2e;
+    --bg-medium: #16213e;
+    --bg-light: #1f2847;
+
+    --text-light: #e0e0e0;
+    --text-secondary: #c0c5d1;
+
+    --border-dark: #0f3460;
+    --border-secondary: #5a6a90;
+}
+
+
 /* Keyframes para Animações */
 @keyframes place-die { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes destroy-die { 0% { transform: scale(1) rotate(0); } 25% { transform: scale(1.1) rotate(-5deg); } 50% { transform: scale(1.1) rotate(5deg); } 100% { transform: scale(0.1) rotate(0); opacity: 0; } }
 @keyframes roll-die { 0% { transform: rotateX(0deg); } 100% { transform: rotateX(1080deg); } }
+@keyframes pulse { 
+    0% { border-color: rgba(var(--primary-rgb), 0.5); } 
+    50% { border-color: rgba(var(--primary-rgb), 1); } 
+    100% { border-color: rgba(var(--primary-rgb), 0.5); } 
+}
+
 
 /* --- Estilos Gerais --- */
 body {
@@ -14,8 +38,8 @@ body {
     justify-content: center;
     min-height: 100vh;
     margin: 0;
-    background-color: #1a1a2e;
-    color: #e0e0e0;
+    background-color: var(--bg-dark);
+    color: var(--text-light);
 }
 
 .hidden {
@@ -25,14 +49,14 @@ body {
 /* --- Telas de Menu --- */
 #game-mode-selection, #difficulty-selection {
     text-align: center;
-    background-color: #16213e;
+    background-color: var(--bg-medium);
     padding: 40px;
     border-radius: 15px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.6);
 }
 
 #game-mode-selection h1, #difficulty-selection h1 {
-    color: #e94560;
+    color: var(--primary-color);
     margin-top: 0;
 }
 
@@ -48,29 +72,28 @@ body {
     font-size: 1.1em;
     font-family: 'Poppins', sans-serif;
     font-weight: 600;
-    border: 2px solid #e94560;
+    border: 2px solid var(--primary-color);
     border-radius: 8px;
     background-color: transparent;
-    color: #e94560;
+    color: var(--primary-color);
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s, transform 0.2s;
     min-width: 200px;
 }
 
 .menu-btn:hover {
-    background-color: #e94560;
+    background-color: var(--primary-color);
     color: white;
     transform: translateY(-3px);
 }
 
 .menu-btn.secondary {
-    background-color: transparent;
-    border-color: #5a6a90;
-    color: #c0c5d1;
+    border-color: var(--border-secondary);
+    color: var(--text-secondary);
 }
 
 .menu-btn.secondary:hover {
-    background-color: #5a6a90;
+    background-color: var(--border-secondary);
     color: white;
 }
 
@@ -81,7 +104,46 @@ body {
     max-width: 1200px;
     padding: 20px;
     box-sizing: border-box;
+    position: relative;
 }
+
+/* --- Balão de Texto do Tutorial --- */
+#tutorial-tooltip {
+    position: absolute;
+    background-color: var(--primary-color);
+    color: #ffffff;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    text-align: center;
+    z-index: 100;
+    font-size: 1.1em;
+    font-weight: 600;
+    max-width: 300px;
+    transition: top 0.5s ease-in-out, left 0.5s ease-in-out, transform 0.5s ease-in-out, opacity 0.3s ease;
+    opacity: 0;
+}
+
+.tooltip-arrow {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; 
+    height: 0; 
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+}
+
+#tutorial-tooltip.arrow-down .tooltip-arrow {
+    bottom: -12px;
+    border-top: 12px solid var(--primary-color);
+}
+
+#tutorial-tooltip.arrow-up .tooltip-arrow {
+    top: -12px;
+    border-bottom: 12px solid var(--primary-color);
+}
+
 
 #game-container {
     display: flex;
@@ -92,44 +154,91 @@ body {
 
 /* --- Área dos Tabuleiros --- */
 .board-area {
-    background-color: #16213e;
+    background-color: var(--bg-medium);
     padding: 15px;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     width: 100%;
     max-width: 400px;
     box-sizing: border-box;
-    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    transition: box-shadow 0.3s ease, border-color 0.3s ease, opacity 0.4s ease;
     border: 3px solid transparent;
 }
 
 .board-area.active-player {
-    border-color: #e94560;
-    box-shadow: 0 4px 25px rgba(233, 69, 96, 0.5);
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 25px rgba(var(--primary-rgb), 0.5);
 }
 
-.board-area h2 { text-align: center; margin: 0 0 15px 0; color: #f0f0f0; }
-.board-area h2 .score { color: #e94560; font-weight: 400; }
+.board-area:not(.active-player) {
+    opacity: 0.65;
+}
+
+.board-area h2 { text-align: center; margin: 0 0 15px 0; color: var(--text-light); }
+.board-area h2 .score { 
+    color: var(--primary-color); 
+    font-weight: 700;
+    text-shadow: 0 0 5px rgba(var(--primary-rgb), 0.5);
+}
+
 .board { display: flex; gap: 10px; justify-content: center; }
 .column { display: flex; flex-direction: column; gap: 10px; border-radius: 8px; transition: background-color 0.3s ease; }
 
 #p1-board .column:hover,
 #p2-board.human-player .column:hover {
-    background-color: rgba(233, 69, 96, 0.2);
     cursor: pointer;
 }
 
-.cell { width: 70px; height: 70px; border: 2px solid #0f3460; background-color: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 2.2em; font-weight: 600; border-radius: 8px; color: #f0f0f0; transition: transform 0.2s ease; }
+#p1-board .column:hover .cell,
+#p2-board.human-player .column:hover .cell {
+    border-color: rgba(var(--primary-rgb), 0.5);
+    background-color: rgba(var(--primary-rgb), 0.1);
+}
+
+.column.highlight .cell {
+    border-color: rgba(var(--primary-rgb), 0.8) !important;
+    background-color: rgba(var(--primary-rgb), 0.2) !important;
+    animation: pulse 1.5s infinite;
+}
+
+.cell { 
+    width: 70px; 
+    height: 70px; 
+    border: 2px solid var(--border-dark); 
+    background-color: var(--bg-dark); 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    border-radius: 8px; 
+    color: var(--text-light); 
+    transition: transform 0.2s ease, border-color 0.3s ease, background-color 0.3s ease; 
+}
 
 .cell.placed { animation: place-die 0.4s ease-out; }
 .cell.destroyed { animation: destroy-die 0.5s ease-in-out; }
 
 /* --- Área de Status --- */
 #status-area { text-align: center; padding: 20px; }
-#turn-info { font-size: 1.2em; font-weight: 600; color: #e94560; min-height: 2em; }
+#turn-info { font-size: 1.2em; font-weight: 600; color: var(--primary-color); min-height: 2em; }
 #dice-container { display: flex; justify-content: center; gap: 30px; margin: 20px 0; }
-.die-display { width: 60px; height: 60px; line-height: 60px; border: 2px solid #e94560; border-radius: 8px; font-size: 2em; margin: 10px auto; background-color: #1f2847; font-weight: bold; color: #fff; text-align: center; }
-.die-display.rolling { animation: roll-die 0.5s ease-in-out; }
+.die-display { 
+    width: 60px; 
+    height: 60px; 
+    padding: 5px; /* Adiciona espaçamento interno */
+    border: 2px solid var(--primary-color); 
+    border-radius: 8px; 
+    margin: 10px auto; 
+    background-color: var(--bg-light); 
+    display: flex; /* Altera para flex para centralizar o conteúdo */
+    align-items: center;
+    justify-content: center;
+}
+.die-display.rolling { 
+    animation: roll-die 0.5s ease-in-out; 
+    font-size: 2em; /* Mantém o número grande durante a animação */
+    font-weight: bold;
+    color: #fff;
+}
 
 #main-menu-button {
     padding: 12px 25px;
@@ -138,13 +247,75 @@ body {
     font-weight: 600;
     border: none;
     border-radius: 8px;
-    background-color: #e94560;
+    background-color: var(--primary-color);
     color: white;
     cursor: pointer;
     transition: background-color 0.3s, transform 0.2s;
     margin-top: 10px;
 }
-#main-menu-button:hover { background-color: #ff667f; transform: translateY(-2px); }
+#main-menu-button:hover { background-color: var(--primary-color-hover); transform: translateY(-2px); }
+
+
+/* --- NOVO: Estilos para Dados com Pips --- */
+.die-visual {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 3px;
+    padding: 4px;
+    box-sizing: border-box;
+}
+
+.pip {
+    background-color: var(--text-light);
+    border-radius: 50%;
+    width: 10px;
+    height: 10px;
+    align-self: center;
+    justify-self: center;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+/* Posicionamento dos pips para cada valor do dado */
+.die-visual[data-value="1"] .pip:nth-child(1) { grid-area: 2 / 2; }
+
+.die-visual[data-value="2"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-visual[data-value="2"] .pip:nth-child(2) { grid-area: 3 / 3; }
+
+.die-visual[data-value="3"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-visual[data-value="3"] .pip:nth-child(2) { grid-area: 2 / 2; }
+.die-visual[data-value="3"] .pip:nth-child(3) { grid-area: 3 / 3; }
+
+.die-visual[data-value="4"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-visual[data-value="4"] .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-visual[data-value="4"] .pip:nth-child(3) { grid-area: 3 / 1; }
+.die-visual[data-value="4"] .pip:nth-child(4) { grid-area: 3 / 3; }
+
+.die-visual[data-value="5"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-visual[data-value="5"] .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-visual[data-value="5"] .pip:nth-child(3) { grid-area: 2 / 2; }
+.die-visual[data-value="5"] .pip:nth-child(4) { grid-area: 3 / 1; }
+.die-visual[data-value="5"] .pip:nth-child(5) { grid-area: 3 / 3; }
+
+.die-visual[data-value="6"] .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-visual[data-value="6"] .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-visual[data-value="6"] .pip:nth-child(3) { grid-area: 2 / 1; }
+.die-visual[data-value="6"] .pip:nth-child(4) { grid-area: 2 / 3; }
+.die-visual[data-value="6"] .pip:nth-child(5) { grid-area: 3 / 1; }
+.die-visual[data-value="6"] .pip:nth-child(6) { grid-area: 3 / 3; }
+
+/* Ajusta o tamanho dos pips para as células menores do tabuleiro */
+.cell .die-visual {
+    gap: 2px;
+    padding: 8px; /* Mais preenchimento para não ficar apertado */
+}
+.cell .pip {
+    width: 12px;
+    height: 12px;
+}
+
 
 /* --- Responsividade --- */
 @media (min-width: 900px) {
