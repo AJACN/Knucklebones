@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const BOARD_COLS = 3;
     const DICE_SIDES = 6;
 
+    let activeTimeouts = [];
+
     const gameState = {
         p1Board: [],
         p2Board: [],
@@ -59,17 +61,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function runTutorialStep() {
+        if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
         if (gameState.tutorialStep >= tutorialSteps.length) return;
         const step = tutorialSteps[gameState.tutorialStep];
-        
+
         gameState.dice.p1 = step.p1Die;
         if (step.p2Board) gameState.p2Board = JSON.parse(JSON.stringify(step.p2Board));
-        
+
         tutorialText.textContent = step.text;
         updateDisplay();
-        
+
         if (gameState.dice.p1) await animateDieRoll(p1DieDisplay, gameState.dice.p1);
-        
+
+        if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
         p1BoardEl.querySelectorAll('.column').forEach(c => c.classList.remove('highlight'));
 
         if (step.requiredCol !== null) {
@@ -78,6 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 requiredColumnEl.classList.add('highlight');
                 requiredColumnEl.addEventListener('click', handleTutorialClick, { once: true });
                 await delay(100);
+                if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
                 tutorialTooltip.classList.remove('hidden');
                 positionTutorialTooltip(requiredColumnEl);
                 tutorialTooltip.style.opacity = '1';
@@ -89,11 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (gameState.tutorialStep === 4) {
                 await delay(1500);
+                if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
                 gameState.p2Board[0][0] = 6;
                 await animateDieRoll(p2DieDisplay, 6);
+                if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
                 animateCell(p2BoardEl.querySelector(`.cell[data-row='0'][data-col='0']`), 'placed');
                 updateDisplay();
                 await delay(2500);
+                if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
                 gameState.tutorialStep++;
                 runTutorialStep();
             } else if (gameState.tutorialStep === 5) {
@@ -103,25 +117,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleTutorialClick(event) {
+        if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+        
         const clickedCol = parseInt(event.currentTarget.dataset.col);
         const step = tutorialSteps[gameState.tutorialStep];
         if (clickedCol !== step.requiredCol) return;
-        
+
         tutorialTooltip.style.opacity = '0';
         event.currentTarget.classList.remove('highlight');
-    
+
         const row = getFirstEmptyRow(gameState.p1Board, clickedCol);
         gameState.p1Board[row][clickedCol] = gameState.dice.p1;
-    
+
         if (step.requiredCol === 2) {
             gameState.p2Board[0][2] = 0;
             animateCell(p2BoardEl.querySelector(`.cell[data-row='0'][data-col='2']`), 'destroyed');
         }
-    
+
         updateDisplay();
         animateCell(p1BoardEl.querySelector(`.cell[data-row='${row}'][data-col='${clickedCol}']`), 'placed');
-        
+
         await delay(1500);
+        if (gameState.mode !== 'tutorial' || !gameState.gameActive) return;
+
         gameState.tutorialStep++;
         tutorialTooltip.classList.add('hidden');
         runTutorialStep();
@@ -147,12 +165,18 @@ document.addEventListener('DOMContentLoaded', () => {
         messageInfoElement.textContent = "";
         tutorialTooltip.classList.add('hidden');
 
+        // --- CORREÇÃO APLICADA AQUI ---
+        // 1. Desativa os cliques no tabuleiro do jogador 1 no início.
+        p1BoardEl.style.pointerEvents = 'none';
+
         p1BoardEl.addEventListener('click', handleBoardClick);
         p2BoardEl.addEventListener('click', handleBoardClick);
 
         if (gameState.mode === 'tutorial') {
             setupLabels('Você', 'Oponente', 'Você Rolou', 'Oponente');
             runTutorialStep();
+            // No tutorial, os cliques são gerenciados de forma diferente, então reativamos aqui.
+            p1BoardEl.style.pointerEvents = 'auto';
             return;
         }
 
@@ -165,7 +189,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         updateDisplay();
-        animateDieRoll(p1DieDisplay, gameState.dice.p1);
+
+        // 2. A função de animação agora retorna uma "promessa" de que vai terminar.
+        animateDieRoll(p1DieDisplay, gameState.dice.p1).then(() => {
+            // 3. Quando a promessa for cumprida (animação terminar), reativamos os cliques.
+            // Verificamos se o jogo ainda está ativo, caso o jogador tenha saído para o menu.
+            if (gameState.gameActive && gameState.currentPlayer === 'p1') {
+                p1BoardEl.style.pointerEvents = 'auto';
+            }
+        });
+        
         p2DieDisplay.innerHTML = '';
         switchTurnUI();
     }
@@ -216,13 +249,18 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDisplay();
         animateCell(active.boardEl.querySelector(`.cell[data-row='${row}'][data-col='${col}']`), 'placed');
         
-        setTimeout(() => {
+        const timeoutDuration = cellsDestroyed ? 500 : 100;
+        const timeoutId = setTimeout(() => {
+            activeTimeouts = activeTimeouts.filter(id => id !== timeoutId);
             updateDisplay();
             switchTurn();
-        }, cellsDestroyed ? 500 : 100);
+        }, timeoutDuration);
+        activeTimeouts.push(timeoutId);
     }
     
     async function switchTurn() {
+        if (!gameState.gameActive) return;
+
         if (isBoardFull(gameState.p1Board) || isBoardFull(gameState.p2Board)) {
             endGame();
             return;
@@ -233,16 +271,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (gameState.currentPlayer === 'p1') {
             gameState.dice.p1 = rollDie();
             await animateDieRoll(p1DieDisplay, gameState.dice.p1);
-            if(gameState.mode === 'player') p2DieDisplay.innerHTML = '';
         } else {
             gameState.dice.p2 = rollDie();
             await animateDieRoll(p2DieDisplay, gameState.dice.p2);
-            if(gameState.mode === 'player') p1DieDisplay.innerHTML = '';
         }
         
+        if (!gameState.gameActive) return;
+
         switchTurnUI();
-        p1BoardEl.style.pointerEvents = 'auto';
-        p2BoardEl.style.pointerEvents = 'auto';
+
+        // Reativa os cliques para o jogador correto
+        p1BoardEl.style.pointerEvents = (gameState.currentPlayer === 'p1') ? 'auto' : 'none';
+        // Apenas reativa o tabuleiro do p2 se for a vez dele E estiver no modo player vs player
+        const isP2HumanTurn = gameState.currentPlayer === 'p2' && gameState.mode === 'player';
+        p2BoardEl.style.pointerEvents = isP2HumanTurn ? 'auto' : 'none';
+
 
         if (gameState.mode === 'cpu' && gameState.currentPlayer === 'p2') {
             triggerCpuLogic();
@@ -265,13 +308,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function returnToMainMenu() {
+        activeTimeouts.forEach(id => clearTimeout(id));
+        activeTimeouts = [];
+
         gameWrapper.classList.add('hidden');
         difficultySelection.classList.add('hidden');
         gameModeSelection.classList.remove('hidden');
         
         gameState.gameActive = false;
+        gameState.mode = '';
+        
         tutorialTooltip.classList.add('hidden');
         tutorialTooltip.style.opacity = '0';
+
+        p1BoardEl.style.pointerEvents = 'auto';
+        p2BoardEl.style.pointerEvents = 'auto';
+
         p1BoardEl.removeEventListener('click', handleBoardClick);
         p2BoardEl.removeEventListener('click', handleBoardClick);
     }
@@ -281,8 +333,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================================================
     async function triggerCpuLogic() {
         p1BoardEl.style.pointerEvents = 'none';
+        p2BoardEl.style.pointerEvents = 'none'; // Garante que CPU não é clicável
         const col = cpuChooseColumn();
         await delay(1000);
+        if (!gameState.gameActive) return;
+
         if (col === -1) {
             switchTurn();
             return;
@@ -290,6 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const cpuColumnEl = p2BoardEl.querySelector(`.column[data-col='${col}']`);
         cpuColumnEl.classList.add('highlight');
         await delay(700);
+        if (!gameState.gameActive) return;
+
         cpuColumnEl.classList.remove('highlight');
         placeDieInColumn(col);
     }
@@ -323,7 +380,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================================================
     // --- FUNÇÕES UTILITÁRIAS E DE EXIBIÇÃO ---
     // ==================================================================
-    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+    
+    function delay(ms) {
+        return new Promise(resolve => {
+            const timeoutId = setTimeout(() => {
+                activeTimeouts = activeTimeouts.filter(id => id !== timeoutId);
+                resolve();
+            }, ms);
+            activeTimeouts.push(timeoutId);
+        });
+    }
+
     const rollDie = () => Math.floor(Math.random() * DICE_SIDES) + 1;
 
     function createDieVisual(value) {
@@ -446,13 +513,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ALTERAÇÃO PRINCIPAL: A função de animação definitiva, com realismo e à prova de falhas.
     async function animateDieRoll(dieElement, finalValue) {
         dieElement.innerHTML = '';
         const cube = create3dDie();
         dieElement.appendChild(cube);
 
-        // Mapeamento matemático correto das rotações para cada face de um dado real.
         const finalRotations = {
             1: { x: 0,    y: 0 },
             2: { x: 90,   y: 0 },
@@ -462,29 +527,24 @@ document.addEventListener('DOMContentLoaded', () => {
             6: { x: 0,    y: -180 }
         };
 
-        // 1. Define um estado inicial de giro alto e aleatório para imprevisibilidade.
-        // Adicionamos múltiplos de 360 para garantir que ele dê voltas completas antes de parar.
-        const randomSpins = 4 + Math.floor(Math.random() * 4); // Entre 4 e 7 giros completos
-        const startX = 360 * randomSpins + (Math.random() * 180 - 90); // Adiciona um desvio
+        const randomSpins = 4 + Math.floor(Math.random() * 4);
+        const startX = 360 * randomSpins + (Math.random() * 180 - 90);
         const startY = 360 * randomSpins + (Math.random() * 180 - 90);
         const startZ = 360 * randomSpins + (Math.random() * 180 - 90);
 
-        // Aplica o estado inicial de giro sem transição.
         cube.style.transition = 'none';
         cube.style.transform = `rotateX(${startX}deg) rotateY(${startY}deg) rotateZ(${startZ}deg)`;
 
-        // 2. Força o navegador a renderizar o estado inicial (previne o "pulo" da animação).
         cube.offsetHeight; 
 
-        // 3. Adiciona a transição e aplica a rotação final exata.
         cube.style.transition = `transform 2s cubic-bezier(0.2, 0.8, 0.25, 1)`;
         const finalTransform = `rotateX(${finalRotations[finalValue].x}deg) rotateY(${finalRotations[finalValue].y}deg)`;
         cube.style.transform = finalTransform;
 
-        // 4. Aguarda a animação de "pouso" terminar.
-        await delay(2000); // Deve corresponder à duração da transição.
+        await delay(2000);
+        
+        if (!gameState.gameActive) return;
 
-        // 5. Substitui o cubo 3D pela imagem 2D final para um acabamento limpo.
         dieElement.innerHTML = '';
         dieElement.appendChild(createDieVisual(finalValue));
     }
@@ -498,12 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function positionTutorialTooltip(targetColumnElement) {
-        if (!targetColumnElement) {
-            tutorialTooltip.style.top = '20px';
-            tutorialTooltip.style.left = '50%';
-            tutorialTooltip.style.transform = 'translateX(-50%)';
-            return;
-        }
+        if (!targetColumnElement || !gameWrapper) return;
         const rect = targetColumnElement.getBoundingClientRect();
         const wrapperRect = gameWrapper.getBoundingClientRect();
         tutorialTooltip.style.top = `${rect.top - wrapperRect.top - tutorialTooltip.offsetHeight - 15}px`;
