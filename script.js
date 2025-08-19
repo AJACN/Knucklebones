@@ -338,19 +338,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return dieVisual;
     }
 
-    // ALTERADO: Agora esta função cria um cubo com a mesma face em todos os lados.
-    function create3dDie(value) {
+    function create3dDie() {
         const cube = document.createElement('div');
         cube.className = 'dice-cube';
-        const faces = ['front', 'back', 'right', 'left', 'top', 'bottom'];
-        
-        faces.forEach(faceName => {
+        const facesData = {
+            front: 1, back: 6,
+            right: 4, left: 3,
+            top: 5, bottom: 2
+        };
+        for (const [faceName, faceValue] of Object.entries(facesData)) {
             const face = document.createElement('div');
             face.className = `face ${faceName}`;
-            // Todas as faces recebem o mesmo valor para a animação
-            face.appendChild(createDieVisual(value)); 
+            face.appendChild(createDieVisual(faceValue));
             cube.appendChild(face);
-        });
+        }
         return cube;
     }
 
@@ -445,24 +446,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ALTERADO: A função de animação agora usa o "truque" de substituição
+    // ALTERAÇÃO PRINCIPAL: A função de animação definitiva, com realismo e à prova de falhas.
     async function animateDieRoll(dieElement, finalValue) {
         dieElement.innerHTML = '';
-        
-        // 1. Cria o cubo 3D com o valor final em todas as faces
-        const cube = create3dDie(finalValue);
+        const cube = create3dDie();
         dieElement.appendChild(cube);
-        
-        // 2. Adiciona a classe para iniciar a animação de rolagem
-        cube.classList.add('rolling');
 
-        // 3. Aguarda a animação terminar
-        await delay(1000); // Duração da animação "roll-3d"
-        
-        // 4. Substitui o cubo 3D pela imagem 2D final e limpa
+        // Mapeamento matemático correto das rotações para cada face de um dado real.
+        const finalRotations = {
+            1: { x: 0,    y: 0 },
+            2: { x: 90,   y: 0 },
+            3: { x: 0,    y: 90 },
+            4: { x: 0,    y: -90 },
+            5: { x: -90,  y: 0 },
+            6: { x: 0,    y: -180 }
+        };
+
+        // 1. Define um estado inicial de giro alto e aleatório para imprevisibilidade.
+        // Adicionamos múltiplos de 360 para garantir que ele dê voltas completas antes de parar.
+        const randomSpins = 4 + Math.floor(Math.random() * 4); // Entre 4 e 7 giros completos
+        const startX = 360 * randomSpins + (Math.random() * 180 - 90); // Adiciona um desvio
+        const startY = 360 * randomSpins + (Math.random() * 180 - 90);
+        const startZ = 360 * randomSpins + (Math.random() * 180 - 90);
+
+        // Aplica o estado inicial de giro sem transição.
+        cube.style.transition = 'none';
+        cube.style.transform = `rotateX(${startX}deg) rotateY(${startY}deg) rotateZ(${startZ}deg)`;
+
+        // 2. Força o navegador a renderizar o estado inicial (previne o "pulo" da animação).
+        cube.offsetHeight; 
+
+        // 3. Adiciona a transição e aplica a rotação final exata.
+        cube.style.transition = `transform 2s cubic-bezier(0.2, 0.8, 0.25, 1)`;
+        const finalTransform = `rotateX(${finalRotations[finalValue].x}deg) rotateY(${finalRotations[finalValue].y}deg)`;
+        cube.style.transform = finalTransform;
+
+        // 4. Aguarda a animação de "pouso" terminar.
+        await delay(2000); // Deve corresponder à duração da transição.
+
+        // 5. Substitui o cubo 3D pela imagem 2D final para um acabamento limpo.
         dieElement.innerHTML = '';
         dieElement.appendChild(createDieVisual(finalValue));
     }
+
 
     function animateCell(cell, animationClass) {
         if (cell) {
